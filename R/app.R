@@ -166,7 +166,7 @@ server <- function(input, output, session) {
                                        NA)
     
     # Store summary results in matrix
-    session$userData$results[input$simulationButton,] <- c(input$simulationButton, 
+    session$userData$results[input$simulationButton,] <- c(as.character(input$simulationButton),
                                                            n_deaths, 
                                                            n_deaths_may30, 
                                                            day_icu_cap_reached, 
@@ -179,7 +179,7 @@ server <- function(input, output, session) {
     df_ls <- lapply(1:length(session$userData$lst_out), FUN = function(x) {
       df <- as.data.frame(session$userData$lst_out[[x]][, 1:6])
       df$t <- 1:nrow(session$userData$lst_out[[x]])
-      df$strategy <- scn_vec[x]
+      df$simulation <- paste('#',scn_vec[x],sep='')
       return(df)
     })
     df_out <- do.call(rbind, df_ls)
@@ -189,7 +189,7 @@ server <- function(input, output, session) {
     ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
-      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
+      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = simulation)) + geom_path() +
         ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
@@ -204,7 +204,7 @@ server <- function(input, output, session) {
     ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
-      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
+      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = simulation)) + geom_path() +
         ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
@@ -219,7 +219,7 @@ server <- function(input, output, session) {
      ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
-      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
+      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = simulation)) + geom_path() +
         ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
@@ -234,7 +234,7 @@ server <- function(input, output, session) {
     ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
-      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
+      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = simulation)) + geom_path() +
         ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
@@ -250,7 +250,7 @@ server <- function(input, output, session) {
     ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
-      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
+      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = simulation)) + geom_path() +
         ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
@@ -266,7 +266,7 @@ server <- function(input, output, session) {
     ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
-      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
+      plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = simulation)) + geom_path() +
         ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
