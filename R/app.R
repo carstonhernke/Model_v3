@@ -9,69 +9,82 @@ source("setup_model.R")
 
 # Define UI ----
 ui <- fluidPage(
-  titlePanel("COVID-19 Model Sandbox"),
+  titlePanel("Minnesota COVID-19 Model Sandbox"),
   
-  sidebarLayout(
-    sidebarPanel(
-      dateInput("shelter_in_place_end_date", 
-                h3("End Date for Shelter-in-Place (Stay at Home Order"), 
-                format = "MM d, yyyy",
-                value = ""),
-      dateInput("social_distancing_end_date", 
-                h3("End Date for Social Distancing"), 
-                format = "MM d, yyyy",
-                value = ""),
-      actionButton("simulationButton", "Run Simulation", icon("play"), style="color: #fff; background-color: #4CAF50"),
-      actionButton("clearSimulationsButton", "Clear Simulations", icon("trash"))
-      ),
-    mainPanel(      
+  fluidRow(
+    column(4,
+             wellPanel(
+        helpText("Start by inputting values for the Shelter-in-Place End Date and Social Distancing End Date, then click 'Run Simulation'"),
+        dateInput("shelter_in_place_end_date", 
+                  h4("End Date for Shelter-in-Place (Stay at Home Order)"), 
+                  format = "MM d, yyyy",
+                  value = ""),
+        dateInput("social_distancing_end_date", 
+                  h4("End Date for Social Distancing"), 
+                  format = "MM d, yyyy",
+                  value = ""),
+        helpText("Note: The start date of social distancing is fixed at March 23rd, and the start date of shelter-in-place is fixed at March 27th (the days these events occurred in Minnesota)."),
+        actionButton("simulationButton", "Run Simulation", icon("play"), style="color: #fff; background-color: #4CAF50"),
+        #actionButton("clearSimulationsButton", "Clear Simulations", icon("trash"))
+          )
+        ),
+    column(8,      
       tabsetPanel(
         tabPanel("ICU Bed Demand", withSpinner(plotOutput("icu_bed_demand_plot"), type = 8)), 
-        tabPanel("Cumulative Deaths", plotOutput("cumulative_deaths_plot")), 
-        tabPanel("Prevalent Infections", plotOutput("prevalent_infections_plot")),
-        tabPanel("Cumulative Infections", plotOutput("cumulative_infections_plot")),
-        tabPanel("Daily Deaths", plotOutput("daily_deaths_plot")),
-        tabPanel("Prevalent Hospitalizations", plotOutput("prevalent_hospitalizations_plot"))
+        tabPanel("Cumulative Deaths", withSpinner(plotOutput("cumulative_deaths_plot"), type = 8)), 
+        tabPanel("Prevalent Infections", withSpinner(plotOutput("prevalent_infections_plot"), type = 8)),
+        tabPanel("Cumulative Infections", withSpinner(plotOutput("cumulative_infections_plot"), type = 8)),
+        tabPanel("Daily Deaths", withSpinner(plotOutput("daily_deaths_plot"), type = 8)),
+        tabPanel("Prevalent Hospitalizations", withSpinner(plotOutput("prevalent_hospitalizations_plot"), type = 8))
+      )
+      )
     ),
-      tableOutput("simulations_table"))
-  )
+    fluidRow(tableOutput("simulations_table"))
 )
 
 # Define server logic ----
 server <- function(input, output, session) {
   
+  autoInvalidate <- reactiveTimer(10000)
+  observe({
+    autoInvalidate()
+    cat(".")
+  })
+  
   showModal(modalDialog(
-    title = "Disclaimer",
-    "👋This tool is designed to make it easy to run simulations using the COVID-19 model developed by the University of Minnesota (documentation: https://mn.gov/covid19/data/modeling/)
-✅This model is intended to show the possible differences in outcomes from different mitigation strategies, rather than precisely estimating mortality numbers \n
-✅Every model, including this one, relies on a simplified representation of the world. This means many factors that may influence the progression of the disease are not accounted for in this model. \n
-✅The code used to create the underlying model was created by the University of Minnesota and the code used to build this web app was created by Carston Hernke. Both sets of code are licensed via the GNU General Public License 3.0, which makes them freely available for reuse. The source code is available here: https://github.com/carstonhernke/Model_v3.",
+    title = "Information & Disclaimer",
+    HTML(paste("👋This tool is designed to make it easy to run simulations using the COVID-19 model developed by the University of Minnesota (documentation: https://mn.gov/covid19/data/modeling/)",
+               "✅This model is intended to show the possible differences in outcomes from different mitigation strategies, rather than precisely estimating mortality numbers.  This tool has the same limitations as the underlying model, and <b>you should understand the modeling methodology and its limitations before using this tool</b> ",
+               "✅Every model, including this one, relies on a simplified representation of the world. This means many factors that may influence the progression of the disease are not accounted for in this model. ", 
+               "✅The code used to create the underlying model was created by the University of Minnesota and the code used to build this web app was created by Carston Hernke. Both sets of code are licensed via the GNU General Public License 3.0, which makes them freely available for reuse. <b>The source code is available at https://github.com/carstonhernke/Model_v3. Contributions are highly encouraged!</b>",  
+               sep="<br/>")),
     easyClose = TRUE,
     footer = modalButton("I Understand")
   ))
   
   baseline_date_as_integer = 18343 # set to march 22 2020, per model
   
-  session$userData$params = setNames(data.frame(matrix(ncol = 3, nrow = 0)), c("simulation_number", "sip_end_date", "social_distancing_end_date"))
+  session$userData$params = setNames(data.frame(matrix(ncol = 3, nrow = 0)), c("Simulation", 
+                                                                               "Shelter-In-Place End Date", 
+                                                                               "Social Distancing End Date"))
   session$userData$results = data.frame(matrix(nrow = 0, ncol = 8))
-  colnames(session$userData$results) <- c("simulation_number", 
-                             "n_deaths", 
-                             "n_deaths_may30",
-                             "day_icu_cap_reached",
-                             "max_icu_demand",
-                             "Rt_est",
-                             "day_peak_infections",
+  colnames(session$userData$results) <- c("Simulation", 
+                             "Mortality", 
+                             "Mortality thru May",
+                             "Day ICU Cap Reached",
+                             "Max ICU Demand",
+                             "Rt Estimate",
+                             "Day of Peak Infections",
                              "additional_vulnerable_sd_days")
   session$userData$lst_out_raw <- list()
   session$userData$lst_out <- list()
   
-  # clearSimulations <- reactive(
-  #   {
-  #     input$clearSimulationsButton
+  # clearSimulations <- eventReactive(input$clearSimulationsButton,
+  #   ({
   #     session$userData$params = setNames(data.frame(matrix(ncol = 3, nrow = 0)), c("simulation_number", "sip_end_date", "social_distancing_end_date"))
   #     session$userData$results = matrix(nrow = length(1), ncol = 8)
-  #     colnames(session$userData$results) <- c("simulation_number", 
-  #                                             "n_deaths", 
+  #     colnames(session$userData$results) <- c("simulation_number",
+  #                                             "n_deaths",
   #                                             "n_deaths_may30",
   #                                             "day_icu_cap_reached",
   #                                             "max_icu_demand",
@@ -79,13 +92,9 @@ server <- function(input, output, session) {
   #                                             "day_peak_infections",
   #                                             "additional_vulnerable_sd_days")
   #     showNotification("Simulations Cleared")
-  # })  
+  # }))
 
-  runModel <- reactive({
-    if(input$simulationButton==0){
-      return(null)
-    }
-    
+  runModel <- eventReactive(input$simulationButton, {
     scn_vec <- seq(1,input$simulationButton)    # Initializing a matrix to store printed summary output from model
     summary_out <- matrix(nrow = length(scn_vec), ncol = 8)
     colnames(summary_out) <- c("strategy", 
@@ -174,14 +183,14 @@ server <- function(input, output, session) {
       return(df)
     })
     df_out <- do.call(rbind, df_ls)
-  })
+  }, ignoreInit = TRUE)
 
   output$icu_bed_demand_plot <- renderPlot({
     ## Function for basic plots of model outputs over time
     plot_func <- function(var_name) {
       var <- sym(var_name)
       plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
-        ylab(var_name) + xlab("Time (weeks)") +
+        ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
       return(plot)
@@ -196,7 +205,7 @@ server <- function(input, output, session) {
     plot_func <- function(var_name) {
       var <- sym(var_name)
       plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
-        ylab(var_name) + xlab("Time (weeks)") +
+        ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
       return(plot)
@@ -211,7 +220,7 @@ server <- function(input, output, session) {
     plot_func <- function(var_name) {
       var <- sym(var_name)
       plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
-        ylab(var_name) + xlab("Time (weeks)") +
+        ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
       return(plot)
@@ -226,7 +235,7 @@ server <- function(input, output, session) {
     plot_func <- function(var_name) {
       var <- sym(var_name)
       plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
-        ylab(var_name) + xlab("Time (weeks)") +
+        ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
       return(plot)
@@ -242,7 +251,7 @@ server <- function(input, output, session) {
     plot_func <- function(var_name) {
       var <- sym(var_name)
       plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
-        ylab(var_name) + xlab("Time (weeks)") +
+        ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
       return(plot)
@@ -258,7 +267,7 @@ server <- function(input, output, session) {
     plot_func <- function(var_name) {
       var <- sym(var_name)
       plot <- ggplot(runModel(), aes(x = t / 7, y = !! var, color = strategy)) + geom_path() +
-        ylab(var_name) + xlab("Time (weeks)") +
+        ylab(var_name) + xlab("Time (weeks after March 22nd)") +
         ggtitle(paste0(var_name)) +
         theme(plot.title = element_text(hjust = 0.5))
       return(plot)
@@ -270,7 +279,16 @@ server <- function(input, output, session) {
   
   output$simulations_table <- renderTable({
     input$simulationButton
-    merge(x = session$userData$params, y = session$userData$results, by = "simulation_number", all.x = TRUE)
+    columns_to_show = c("Simulation",
+                        "Shelter-In-Place End Date", 
+                        "Social Distancing End Date",
+                        "Mortality", 
+                        "Mortality thru May",
+                        "Day ICU Cap Reached",
+                        "Max ICU Demand",
+                        "Day of Peak Infections")
+    m = merge(x = session$userData$params, y = session$userData$results, by = 'Simulation', all.x = TRUE)
+    m[columns_to_show]
   })
 }
 
